@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { login as apiLogin } from '../api';
-import { useNavigate } from 'react-router-dom';
+
 
 const Login: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'admin' | 'student'>('admin');
