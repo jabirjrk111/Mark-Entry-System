@@ -18,13 +18,30 @@ const ResultCard: React.FC<Props> = ({ student, onClose, examConfig, isModal = t
         if (!cardRef.current) return;
 
         try {
-            const canvas = await html2canvas(cardRef.current, {
+            // Clone the element to render it with a fixed width, independent of the current device viewport
+            const element = cardRef.current;
+            const clone = element.cloneNode(true) as HTMLElement;
+
+            // Set a fixed width for the clone (e.g., 800px) to ensure desktop-like rendering
+            clone.style.width = '800px';
+            clone.style.position = 'absolute';
+            clone.style.top = '-10000px';
+            clone.style.left = '-10000px';
+            // Ensure strict inline styling is preserved or effectively applied
+            clone.style.backgroundColor = '#ffffff';
+
+            document.body.appendChild(clone);
+
+            const canvas = await html2canvas(clone, {
                 scale: 2,
                 useCORS: true,
-                logging: true,
-                windowWidth: cardRef.current.scrollWidth,
-                windowHeight: cardRef.current.scrollHeight
+                logging: false, // Disable logging for production
+                windowWidth: 800, // Match the clone width
             });
+
+            // Remove the clone after capturing
+            document.body.removeChild(clone);
+
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -37,7 +54,7 @@ const ResultCard: React.FC<Props> = ({ student, onClose, examConfig, isModal = t
             const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
 
             const imgX = (pdfWidth - imgWidth * ratio) / 2;
-            const imgY = 0; // Top align
+            const imgY = 10; // Top margin
             const imgW = imgWidth * ratio;
             const imgH = imgHeight * ratio;
 
