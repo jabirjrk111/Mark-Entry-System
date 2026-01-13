@@ -58,4 +58,35 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// Create new student
+router.post('/', async (req, res) => {
+    try {
+        const newStudent = new Student(req.body);
+        const savedStudent = await newStudent.save();
+        res.status(201).json(savedStudent);
+    } catch (error) {
+        console.error("Error creating student:", error);
+        res.status(500).json({ message: 'Error creating student' });
+    }
+});
+
+// Update student
+router.put('/:id', async (req, res) => {
+    try {
+        const updatedStudent = await Student.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true }
+        );
+        if (!updatedStudent) {
+            res.status(404).json({ message: 'Student not found' });
+            return;
+        }
+        res.json(updatedStudent);
+    } catch (error) {
+        console.error("Error updating student:", error);
+        res.status(500).json({ message: 'Error updating student' });
+    }
+});
+
 export default router;

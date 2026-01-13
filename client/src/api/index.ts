@@ -41,6 +41,16 @@ export const getStudent = async (id: string): Promise<Student> => {
     return response.data;
 };
 
+export const createStudent = async (student: Partial<Student>) => {
+    const response = await api.post('/results', student);
+    return response.data;
+};
+
+export const updateStudent = async (id: string, student: Partial<Student>) => {
+    const response = await api.put(`/results/${id}`, student);
+    return response.data;
+};
+
 export const deleteStudent = async (id: string) => {
     await api.delete(`/results/${id}`);
 };

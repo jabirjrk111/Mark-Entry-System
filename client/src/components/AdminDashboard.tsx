@@ -3,7 +3,8 @@ import UploadForm from './UploadForm';
 import ResultList from './ResultList';
 import ResultCard from './ResultCard';
 import ExamConfigForm from './ExamConfigForm';
-import { getResults, deleteAllStudents, deleteStudent, getExamConfig, saveExamConfig } from '../api';
+import StudentForm from './StudentForm';
+import { getResults, deleteAllStudents, deleteStudent, getExamConfig, saveExamConfig, createStudent, updateStudent } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { Student, ExamConfig } from '../types';
 
@@ -13,6 +14,10 @@ const AdminDashboard: React.FC = () => {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [loading, setLoading] = useState(false);
     const [examConfig, setExamConfig] = useState<ExamConfig | null>(null);
+
+    // State for manual entry/editing
+    const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
+    const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -50,11 +55,6 @@ const AdminDashboard: React.FC = () => {
         try {
             await deleteAllStudents();
             setStudents([]);
-            // converting null to undefined to match state type if strict, but let's keep null as "no config"
-            // Actually, we might want to Keep config even if students are deleted?
-            // The user request didn't specify, but usually config is independent. 
-            // However, existing code wiped it. Let's keep it if we persist it now.
-            // setExamConfig(null); 
         } catch (error) {
             console.error("Failed to delete all students", error);
             alert("Failed to reset data.");
@@ -72,14 +72,45 @@ const AdminDashboard: React.FC = () => {
         }
     };
 
+    const handleAddStudentClick = () => {
+        setEditingStudent(null);
+        setIsStudentFormOpen(true);
+    };
+
+    const handleEditStudentClick = (student: Student) => {
+        setEditingStudent(student);
+        setIsStudentFormOpen(true);
+    };
+
+    const handleSaveStudent = async (studentData: Partial<Student>) => {
+        try {
+            if (editingStudent) {
+                // Update
+                const updated = await updateStudent(editingStudent._id, studentData);
+                setStudents(prev => prev.map(s => s._id === updated._id ? updated : s));
+            } else {
+                // Create
+                const created = await createStudent(studentData);
+                setStudents(prev => [...prev, created]);
+            }
+            setIsStudentFormOpen(false);
+        } catch (error) {
+            console.error("Failed to save student", error);
+            alert("Failed to save student data.");
+        }
+    };
+
     const detectedSubjects = React.useMemo(() => {
-        if (students.length === 0) return [];
+        if (students.length === 0 && !examConfig) return [];
         const subjectSet = new Set<string>();
+        if (examConfig) {
+            Object.keys(examConfig).forEach(k => subjectSet.add(k));
+        }
         students.forEach(student => {
             Object.keys(student.marks).forEach(s => subjectSet.add(s));
         });
         return Array.from(subjectSet);
-    }, [students]);
+    }, [students, examConfig]);
 
     return (
         <div className="min-h-screen bg-gray-100 p-8 font-sans">
@@ -109,35 +140,23 @@ const AdminDashboard: React.FC = () => {
                 )}
 
                 <div className="grid grid-cols-1 md:col-span-3 gap-8">
-                    <div className="md:col-span-1">
-                        <UploadForm onUploadSuccess={() => { fetchData(); }} />
+                    <div className="md:col-span-1 space-y-6">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-50">
+                            <h3 className="font-bold text-gray-700 mb-4">Actions</h3>
+                            <button
+                                onClick={handleAddStudentClick}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all font-semibold flex justify-center items-center mb-4"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                Add Student Manually
+                            </button>
+                            <UploadForm onUploadSuccess={() => { fetchData(); }} />
+                        </div>
 
                         {examConfig && (
-                            <div className="mt-6 bg-white p-6 rounded-xl shadow-sm border border-blue-100">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-gray-700">Exam Settings</h3>
-                                    {/* <button
-                                        onClick={() => setExamConfig(null)}
-                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                                    >
-                                        Edit
-                                    </button> */}
-                                    {/* Edit button removes config in local state previously. Now we want to just show it. Form is above. 
-                                        Actually, if config exists, we probably want to show the form populated, OR just show the summary.
-                                        The Form checks if !examConfig to show itself. 
-                                        
-                                        We should probably Allow editing. 
-                                        Let's change the logic: Always show form? Or show form if "Edit" clicked.
-                                        
-                                        For now, let's keep it simple. If config exists, we show summary. If user wants to edit, we need a way.
-                                        The previous code had `setExamConfig(null)` to "Edit".
-                                        If I do that, `examConfig` becomes null, so the Form appears (line 82 condition).
-                                        Then user saves, `handleSaveConfig` called, `examConfig` set again.
-                                        This flow still works for UI, but "Edit" implies modifying existing, not starting from scratch.
-                                        `ExamConfigForm` handles `initialConfig`.
-                                        
-                                        Let's update `ExamConfigForm` usage to pass `examConfig` as `initialConfig`.
-                                    */}
                                 </div>
                                 <div className="space-y-2 text-sm">
                                     {Object.entries(examConfig).map(([subject, conf]) => (
@@ -149,7 +168,7 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                                 <div className="mt-4 flex justify-end">
                                     <button
-                                        onClick={() => setExamConfig(null)} // This effectively hides this block and shows the Form
+                                        onClick={() => setExamConfig(null)}
                                         className="text-sm text-blue-600 hover:underline"
                                     >
                                         Edit Configuration
@@ -171,6 +190,7 @@ const AdminDashboard: React.FC = () => {
                                 onSelectStudent={setSelectedStudent}
                                 onDeleteStudent={handleDeleteStudent}
                                 onDeleteAll={handleDeleteAll}
+                                onEditStudent={handleEditStudentClick}
                             />
                         )}
                     </div>
@@ -181,6 +201,16 @@ const AdminDashboard: React.FC = () => {
                         student={selectedStudent}
                         onClose={() => setSelectedStudent(null)}
                         examConfig={examConfig}
+                    />
+                )}
+
+                {isStudentFormOpen && (
+                    <StudentForm
+                        initialStudent={editingStudent}
+                        examConfig={examConfig}
+                        subjects={detectedSubjects}
+                        onSave={handleSaveStudent}
+                        onCancel={() => setIsStudentFormOpen(false)}
                     />
                 )}
             </div>
